@@ -1,11 +1,9 @@
 from __future__ import print_function
 
 import sys
-import time
 import signal
 import warnings
 import logging
-from multiprocessing import Pool
 from logging.handlers import QueueHandler, QueueListener
 import multiprocessing.pool
 import traceback
@@ -100,15 +98,3 @@ def worker_init(warningFilter, queue=None):
     # causes child processes to ignore SIGINT signal and lets main process handle
     # interrupts instead (https://noswap.com/blog/python-multiprocessing-keyboardinterrupt)
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-
-
-def addOne(i):
-    return i + 1
-
-
-def unitTest():
-    pool = JobPool(4)
-    for i in range(20):
-        pool.applyAsync(addOne, [i])
-    results = pool.checkPool()
-    print(results)
