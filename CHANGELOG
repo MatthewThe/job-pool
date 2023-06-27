@@ -1,2 +1,7 @@
+v0.1.1
+- Fixed GitHub Actions
+- Format with black and added type hints
+- Updated README
+
 v0.1.0
 - Initial release
