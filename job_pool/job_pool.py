@@ -1,6 +1,5 @@
-from __future__ import print_function
-
 import sys
+import time
 import signal
 import warnings
 import logging
@@ -35,21 +34,35 @@ class NestablePool(multiprocessing.pool.Pool):
 
 
 class JobPool:
-    def __init__(self, processes=1, warningFilter="default", queue=None):
+    def __init__(self, processes=1, warningFilter="default", queue: multiprocessing.Queue=None, timeout=10000, maxtasksperchild=None):
+        """Creates a JobPool object
+
+        In the GUIs, the actual processing runs in a child process to allow user
+        interaction with the GUI itself. In this case, we need a
+        NoDaemonProcess to allow this child process to spawn children,
+        which is implemented in the NestablePool class.
+        We also need to pass the logger to these grandchildren processes
+        using the multiprocessing.Queue and QueueListener classes.
+
+        Args:
+            processes: number of processes. Defaults to 1.
+            warningFilter: level of warnings (https://docs.python.org/3/library/warnings.html#warning-filter). Defaults to "default".
+            queue: a multiprocessing.Queue object. If None, a new queue is automatically created. Defaults to None.
+            timeout: maximum time out for each job in seconds. Defaults to 10000 (~3 hours).
+            maxtasksperchild: number of jobs a process can execute before respawning a new process. If None, the number of jobs is unlimited. Default to None.
+        """
+        self.timeout = timeout
         self.warningFilter = warningFilter
-        
-        # In the GUI, SIMSI-Transfer runs in a child process to allow user
-        # interaction with the GUI itself. In this case, we need a 
-        # NoDaemonProcess to allow this child process to spawn children,
-        # which is implemented in the NestablePool class.
-        # We also need to pass the logger to these grandchildren processes
-        # using the multiprocessing.Queue and QueueListener classes.
-        if not queue and multiprocessing.current_process().name != 'MainProcess':
+        self.maxtasksperchild = maxtasksperchild
+
+        if not queue and multiprocessing.current_process().name != "MainProcess":
             queue = multiprocessing.Queue()
             queue_listener = QueueListener(queue, logger)
             queue_listener.start()
-        self.pool = NestablePool(processes, worker_init, initargs=(self.warningFilter, queue))
-        
+        self.pool = NestablePool(
+            processes, worker_init, initargs=(self.warningFilter, queue), maxtasksperchild=self.maxtasksperchild
+        )
+
         self.results = []
 
     def applyAsync(self, f, fargs, *args, **kwargs):
@@ -57,32 +70,50 @@ class JobPool:
         self.results.append(r)
 
     def checkPool(self, printProgressEvery=-1):
+        processes = self.pool._pool[:]
         try:
             outputs = list()
             for res in self.results:
-                outputs.append(res.get(timeout=10000))  # 10000 seconds = ~3 hours
+                self.checkForTerminatedProcess(res, processes)
+                # get a fresh list of processes if workers get respawned every n jobs
+                if self.maxtasksperchild:
+                    processes = self.pool._pool[:]
+                outputs.append(res.get())
                 if printProgressEvery > 0 and len(outputs) % printProgressEvery == 0:
                     logger.info(
-                        f' {len(outputs)} / {len(self.results)} {"%.2f" % (float(len(outputs)) / len(self.results) * 100)}%')
+                        f' {len(outputs)} / {len(self.results)} {"%.2f" % (float(len(outputs)) / len(self.results) * 100)}%'
+                    )
             self.pool.close()
             self.pool.join()
             return outputs
-        except (KeyboardInterrupt, SystemExit):
-            logger.error("Caught KeyboardInterrupt, terminating workers")
+        except (KeyboardInterrupt, SystemExit) as e:
+            logger.error(f"Caught {e.__class__.__name__}, terminating workers")
             self.pool.terminate()
             self.pool.join()
             sys.exit(1)
         except Exception as e:
-            logger.error("Caught Unknown exception, terminating workers")
+            logger.error(f"Caught {e.__class__.__name__}. terminating workers")
             logger.error(traceback.print_exc())
             logger.error(e)
             self.pool.terminate()
             self.pool.join()
             sys.exit(1)
 
-    def stopPool(self):
-        self.pool.terminate()
-        self.pool.join()
+    def checkForTerminatedProcess(self, res, processes):
+        start_time = time.time()
+        while not res.ready():
+            if any(proc.exitcode for proc in processes):
+                logger.error("Caught abnormal exit of one of the workers, exiting...")
+                for proc in processes:
+                    if proc.exitcode:
+                        logger.error(f"{proc} {proc.exitcode}")
+                sys.exit()
+            
+            # wait for one second before checking exit codes again
+            res.wait(timeout=1)
+
+            if time.time() - start_time > self.timeout:
+                raise TimeoutError
 
 
 def worker_init(warningFilter, queue=None):
