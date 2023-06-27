@@ -1,4 +1,4 @@
-from job_pool.job_pool import JobPool
+from job_pool import JobPool
 import sys
 import time
 import pytest

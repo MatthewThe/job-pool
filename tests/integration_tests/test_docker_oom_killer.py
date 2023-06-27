@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-from job_pool.job_pool import JobPool
+from job_pool import JobPool
 
 
 def allocate_memory(mega_bytes):

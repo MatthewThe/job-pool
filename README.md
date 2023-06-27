@@ -18,7 +18,7 @@ def multiprocessed_add_one():
     pool = JobPool(4)
     for i in range(20):
         pool.applyAsync(add_one, [i])
-    results = pool.checkPool()
+    results = pool.checkPool(printProgressEvery=5)
     assert results == list(range(1,21))
 ```
 
