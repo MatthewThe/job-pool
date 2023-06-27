@@ -1,3 +1,7 @@
+v0.2.0
+- Add logger
+- Allow top-level import of JobPool
+
 v0.1.1
 - Fixed GitHub Actions
 - Format with black and added type hints
