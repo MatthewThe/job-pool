@@ -1,6 +1,7 @@
 import sys
 import time
 import signal
+from typing import Optional
 import warnings
 import logging
 from logging.handlers import QueueHandler, QueueListener
@@ -34,7 +35,14 @@ class NestablePool(multiprocessing.pool.Pool):
 
 
 class JobPool:
-    def __init__(self, processes=1, warningFilter="default", queue: multiprocessing.Queue=None, timeout=10000, maxtasksperchild=None):
+    def __init__(
+        self,
+        processes: int = 1,
+        warningFilter: str = "default",
+        queue: Optional[multiprocessing.Queue] = None,
+        timeout: int = 10000,
+        maxtasksperchild: Optional[int] = None,
+    ):
         """Creates a JobPool object
 
         In the GUIs, the actual processing runs in a child process to allow user
@@ -60,7 +68,10 @@ class JobPool:
             queue_listener = QueueListener(queue, logger)
             queue_listener.start()
         self.pool = NestablePool(
-            processes, worker_init, initargs=(self.warningFilter, queue), maxtasksperchild=self.maxtasksperchild
+            processes,
+            worker_init,
+            initargs=(self.warningFilter, queue),
+            maxtasksperchild=self.maxtasksperchild,
         )
 
         self.results = []
@@ -69,7 +80,7 @@ class JobPool:
         r = self.pool.apply_async(f, fargs, *args, **kwargs)
         self.results.append(r)
 
-    def checkPool(self, printProgressEvery=-1):
+    def checkPool(self, printProgressEvery: int = -1):
         processes = self.pool._pool[:]
         try:
             outputs = list()
@@ -108,7 +119,7 @@ class JobPool:
                     if proc.exitcode:
                         logger.error(f"{proc} {proc.exitcode}")
                 sys.exit()
-            
+
             # wait for one second before checking exit codes again
             res.wait(timeout=1)
 
@@ -116,7 +127,7 @@ class JobPool:
                 raise TimeoutError
 
 
-def worker_init(warningFilter, queue=None):
+def worker_init(warningFilter: str, queue: Optional[multiprocessing.Queue] = None):
     if queue:
         queueHandler = QueueHandler(queue)
         logger = logging.getLogger()
