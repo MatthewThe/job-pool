@@ -3,7 +3,7 @@ import logging.handlers
 import time
 
 # allow high level import, i.e. job_pool.JobPool instead of job_pool.job_pool.JobPool
-from .job_pool import JobPool
+from .job_pool import JobPool, AbnormalPoolTerminationError
 
 # get version number
 __version__ = "0.0.0"
@@ -30,9 +30,9 @@ CONSOLE_LOG_LEVEL = logging.INFO
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 if len(logger.handlers) == 0:
-    #formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s::%(funcName)s %(message)s")
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     formatter.converter = time.gmtime
+    
     # add console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(CONSOLE_LOG_LEVEL)

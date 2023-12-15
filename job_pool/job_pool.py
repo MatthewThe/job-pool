@@ -45,6 +45,16 @@ class NestablePool(multiprocessing.pool.Pool):
         self.processes = [p for p in self.processes if p.exitcode != 0]
 
 
+class AbnormalPoolTerminationError(Exception):
+    "Raised when the pool has a non-zero exitcode"
+    pass
+
+
+class AbnormalWorkerTerminationError(Exception):
+    "Raised when the worker has a non-zero exitcode"
+    pass
+
+
 class JobPool:
     def __init__(
         self,
@@ -107,13 +117,12 @@ class JobPool:
         except (KeyboardInterrupt, SystemExit) as e:
             logger.error(f"Caught {e.__class__.__name__}, terminating workers")
             self.stopPool()
-            sys.exit(1)
+            raise AbnormalPoolTerminationError from None
         except Exception as e:
             logger.error(f"Caught {e.__class__.__name__}. terminating workers")
-            logger.error(traceback.print_exc())
-            logger.error(e)
+            logger.error(e, exc_info=1)
             self.stopPool()
-            sys.exit(1)
+            raise AbnormalPoolTerminationError from None
 
     def stopPool(self):
         self.pool.terminate()
@@ -123,9 +132,7 @@ class JobPool:
         start_time = time.time()
         while not res.ready():
             if proc := self.pool.check_for_terminated_processes():
-                logger.error("Caught abnormal exit of one of the workers, exiting...")
-                logger.error(f"{proc} {proc.exitcode}")
-                sys.exit()
+                raise AbnormalWorkerTerminationError(f"Caught abnormal exit of one of the workers: {proc}")
 
             # wait for one second before checking exit codes again
             res.wait(timeout=1)
