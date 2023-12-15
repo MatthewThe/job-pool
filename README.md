@@ -13,7 +13,7 @@ Enhanced Job Pool for Python Multiprocessing
 ## Usage
 
 ```python
-from job_pool.job_pool import JobPool
+from job_pool import JobPool
 
 def add_one(i):
     return i + 1
