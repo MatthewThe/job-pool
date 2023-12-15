@@ -1,3 +1,6 @@
+v0.2.3
+- Use tqdm for progress
+
 v0.2.2
 - Add custom exceptions
 - Better check for abnormal worker termination
