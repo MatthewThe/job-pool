@@ -8,6 +8,8 @@ import multiprocessing.pool
 
 from tqdm import tqdm
 
+from job_pool.tqdm_logger import TqdmToLogger
+
 logger = logging.getLogger(__name__)
 
 
@@ -87,7 +89,7 @@ class JobPool:
             queue = multiprocessing.Queue()
             queue_listener = QueueListener(queue, logger)
             queue_listener.start()
-        
+
         self.pool = NestablePool(
             processes,
             worker_init,
@@ -104,13 +106,15 @@ class JobPool:
     def checkPool(self, printProgressEvery: int = -1):
         try:
             outputs = list()
-            for res in tqdm(self.results):
+            tqdm_out = TqdmToLogger(logger, level=logging.INFO)
+            for res in tqdm(
+                self.results,
+                file=tqdm_out,
+                miniters=printProgressEvery,
+                maxinterval=float("inf"),
+            ):
                 self.checkForTerminatedProcess(res)
                 outputs.append(res.get())
-                if printProgressEvery > 0 and len(outputs) % printProgressEvery == 0:
-                    logger.info(
-                        f' {len(outputs)} / {len(self.results)} {"%.2f" % (float(len(outputs)) / len(self.results) * 100)}%'
-                    )
             self.pool.close()
             self.pool.join()
             return outputs
@@ -132,7 +136,9 @@ class JobPool:
         start_time = time.time()
         while not res.ready():
             if proc := self.pool.check_for_terminated_processes():
-                raise AbnormalWorkerTerminationError(f"Caught abnormal exit of one of the workers: {proc}")
+                raise AbnormalWorkerTerminationError(
+                    f"Caught abnormal exit of one of the workers: {proc}"
+                )
 
             # wait for one second before checking exit codes again
             res.wait(timeout=1)
