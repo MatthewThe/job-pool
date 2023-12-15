@@ -8,7 +8,7 @@ readme = "README.md"
 packages = [{include = "job_pool"}]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.8"
 
 
 [tool.poetry.group.dev.dependencies]
