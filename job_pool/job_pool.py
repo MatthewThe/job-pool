@@ -1,4 +1,3 @@
-import sys
 import time
 import signal
 from typing import Optional
@@ -6,7 +5,8 @@ import warnings
 import logging
 from logging.handlers import QueueHandler, QueueListener
 import multiprocessing.pool
-import traceback
+
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ class JobPool:
     def checkPool(self, printProgressEvery: int = -1):
         try:
             outputs = list()
-            for res in self.results:
+            for res in tqdm(self.results):
                 self.checkForTerminatedProcess(res)
                 outputs.append(res.get())
                 if printProgressEvery > 0 and len(outputs) % printProgressEvery == 0:

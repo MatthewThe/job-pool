@@ -9,6 +9,7 @@ packages = [{include = "job_pool"}]
 
 [tool.poetry.dependencies]
 python = "^3.8"
+tqdm = "^4.66.1"
 
 
 [tool.poetry.group.dev.dependencies]
