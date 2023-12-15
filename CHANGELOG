@@ -1,3 +1,6 @@
+v0.2.4
+- Option to send tqdm progress to logger object
+
 v0.2.3
 - Use tqdm for progress
 
