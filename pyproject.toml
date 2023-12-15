@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "job-pool"
-version = "0.2.1"
+version = "0.2.2"
 description = "Enhanced Job Pool for Python Multiprocessing"
 authors = ["Matthew The <matthew.the@tum.de>"]
 license = "Apache-2.0"
