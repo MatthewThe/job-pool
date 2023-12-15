@@ -1,3 +1,7 @@
+v0.2.1
+- Allow Python 3.8
+- Add coverage and workflow badges
+
 v0.2.0
 - Add logger
 - Allow top-level import of JobPool
