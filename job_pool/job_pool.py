@@ -110,6 +110,10 @@ class JobPool:
             self.pool.join()
             sys.exit(1)
 
+    def stopPool(self):
+        self.pool.terminate()
+        self.pool.join()
+        
     def checkForTerminatedProcess(self, res, processes):
         start_time = time.time()
         while not res.ready():
