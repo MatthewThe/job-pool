@@ -65,6 +65,7 @@ class JobPool:
         queue: Optional[multiprocessing.Queue] = None,
         timeout: int = 10000,
         maxtasksperchild: Optional[int] = None,
+        write_progress_to_logger: bool = False,
     ):
         """Creates a JobPool object
 
@@ -84,6 +85,7 @@ class JobPool:
         """
         self.timeout = timeout
         self.maxtasksperchild = maxtasksperchild
+        self.write_progress_to_logger = write_progress_to_logger
 
         if not queue and multiprocessing.current_process().name != "MainProcess":
             queue = multiprocessing.Queue()
@@ -106,7 +108,9 @@ class JobPool:
     def checkPool(self, printProgressEvery: int = -1):
         try:
             outputs = list()
-            tqdm_out = TqdmToLogger(logger, level=logging.INFO)
+            tqdm_out = None
+            if self.write_progress_to_logger:
+                tqdm_out = TqdmToLogger(logger, level=logging.INFO)
             for res in tqdm(
                 self.results,
                 file=tqdm_out,
