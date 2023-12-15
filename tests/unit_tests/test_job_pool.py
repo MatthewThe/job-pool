@@ -1,11 +1,18 @@
-from job_pool import JobPool, AbnormalPoolTerminationError
 import sys
 import time
 import pytest
 
+from job_pool import JobPool, AbnormalPoolTerminationError
+
 
 def add_one(i):
     return i + 1
+
+
+def exit_if_one(value):
+    if value:
+        sys.exit(123)
+    return value
 
 
 def test_add_one():
@@ -15,12 +22,6 @@ def test_add_one():
         pool.applyAsync(add_one, [i])
     results = pool.checkPool()
     assert results == list(range(1, 21))
-
-
-def exit_if_one(value):
-    if value:
-        sys.exit(123)
-    return value
 
 
 def test_exited_process():
@@ -89,5 +90,18 @@ def test_maxtasksperchild_with_exited_process():
         _ = pool.checkPool()
 
 
+def test_write_progress_to_logger(caplog):
+    """Tests that each job finishes within timeout, but total time is allowed to exceed timeout"""
+    pool = JobPool(4, maxtasksperchild=2, write_progress_to_logger=True)
+    for value in [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]:
+        pool.applyAsync(add_one, [value])
+
+    results = pool.checkPool()
+
+    assert "100%" in caplog.text
+
+    assert results == [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+
+
 if __name__ == "__main__":
-    test_maxtasksperchild_with_exited_process()
+    test_write_progress_to_logger()
