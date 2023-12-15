@@ -27,11 +27,22 @@ class NoDaemonProcess(multiprocessing.Process):
 # because the latter is only a wrapper function, not a proper class.
 # https://stackoverflow.com/questions/6974695/python-process-pool-non-daemonic#54304172
 class NestablePool(multiprocessing.pool.Pool):
+    def __init__(self, *args, **kwargs):
+        self.processes = []
+        super().__init__(*args, **kwargs)
+
     def Process(self, *args, **kwds):
         proc = super(NestablePool, self).Process(*args, **kwds)
         proc.__class__ = NoDaemonProcess
 
+        self.processes.append(proc)
         return proc
+
+    def check_for_terminated_processes(self):
+        for proc in self.processes:
+            if proc.exitcode:
+                return proc
+        self.processes = [p for p in self.processes if p.exitcode != 0]
 
 
 class JobPool:
@@ -60,17 +71,17 @@ class JobPool:
             maxtasksperchild: number of jobs a process can execute before respawning a new process. If None, the number of jobs is unlimited. Default to None.
         """
         self.timeout = timeout
-        self.warningFilter = warningFilter
         self.maxtasksperchild = maxtasksperchild
 
         if not queue and multiprocessing.current_process().name != "MainProcess":
             queue = multiprocessing.Queue()
             queue_listener = QueueListener(queue, logger)
             queue_listener.start()
+        
         self.pool = NestablePool(
             processes,
             worker_init,
-            initargs=(self.warningFilter, queue),
+            initargs=(warningFilter, queue),
             maxtasksperchild=self.maxtasksperchild,
         )
 
@@ -81,14 +92,10 @@ class JobPool:
         self.results.append(r)
 
     def checkPool(self, printProgressEvery: int = -1):
-        processes = self.pool._pool[:]
         try:
             outputs = list()
             for res in self.results:
-                self.checkForTerminatedProcess(res, processes)
-                # get a fresh list of processes if workers get respawned every n jobs
-                if self.maxtasksperchild:
-                    processes = self.pool._pool[:]
+                self.checkForTerminatedProcess(res)
                 outputs.append(res.get())
                 if printProgressEvery > 0 and len(outputs) % printProgressEvery == 0:
                     logger.info(
@@ -99,29 +106,25 @@ class JobPool:
             return outputs
         except (KeyboardInterrupt, SystemExit) as e:
             logger.error(f"Caught {e.__class__.__name__}, terminating workers")
-            self.pool.terminate()
-            self.pool.join()
+            self.stopPool()
             sys.exit(1)
         except Exception as e:
             logger.error(f"Caught {e.__class__.__name__}. terminating workers")
             logger.error(traceback.print_exc())
             logger.error(e)
-            self.pool.terminate()
-            self.pool.join()
+            self.stopPool()
             sys.exit(1)
 
     def stopPool(self):
         self.pool.terminate()
         self.pool.join()
-        
-    def checkForTerminatedProcess(self, res, processes):
+
+    def checkForTerminatedProcess(self, res):
         start_time = time.time()
         while not res.ready():
-            if any(proc.exitcode for proc in processes):
+            if proc := self.pool.check_for_terminated_processes():
                 logger.error("Caught abnormal exit of one of the workers, exiting...")
-                for proc in processes:
-                    if proc.exitcode:
-                        logger.error(f"{proc} {proc.exitcode}")
+                logger.error(f"{proc} {proc.exitcode}")
                 sys.exit()
 
             # wait for one second before checking exit codes again
@@ -141,6 +144,6 @@ def worker_init(warningFilter: str, queue: Optional[multiprocessing.Queue] = Non
     # set warningFilter for the child processes
     warnings.simplefilter(warningFilter)
 
-    # causes child processes to ignore SIGINT signal and lets main process handle
+    # causes child processes to ignore SIGINT (interrupt) signal and lets main process handle
     # interrupts instead (https://noswap.com/blog/python-multiprocessing-keyboardinterrupt)
     signal.signal(signal.SIGINT, signal.SIG_IGN)

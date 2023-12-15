@@ -97,3 +97,7 @@ def test_maxtasksperchild_with_exited_process():
         _ = pool.checkPool()
     
     assert pytest_wrapped_e.value.code == 1
+
+
+if __name__ == "__main__":
+    test_maxtasksperchild_with_exited_process()
