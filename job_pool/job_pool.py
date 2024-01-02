@@ -1,3 +1,4 @@
+from threadpoolctl import threadpool_limits
 import time
 import signal
 from typing import Optional
@@ -58,6 +59,7 @@ class AbnormalWorkerTerminationError(Exception):
 
 
 class JobPool:
+    @threadpool_limits.wrap(limits=1, user_api='blas')
     def __init__(
         self,
         processes: int = 1,
