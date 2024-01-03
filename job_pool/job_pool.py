@@ -59,7 +59,6 @@ class AbnormalWorkerTerminationError(Exception):
 
 
 class JobPool:
-    @threadpool_limits.wrap(limits=1, user_api='blas')
     def __init__(
         self,
         processes: int = 1,
@@ -121,8 +120,7 @@ class JobPool:
             ):
                 self.checkForTerminatedProcess(res)
                 outputs.append(res.get())
-            self.pool.close()
-            self.pool.join()
+            self.stopPool()
             return outputs
         except (KeyboardInterrupt, SystemExit) as e:
             logger.error(f"Caught {e.__class__.__name__}, terminating workers")
