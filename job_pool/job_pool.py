@@ -148,6 +148,7 @@ class JobPool:
                 self.checkForTerminatedProcess(res)
                 outputs.append(res.get())
             self.stopPool()
+            self.progress_bar.close()
             return outputs
         except (KeyboardInterrupt, SystemExit) as e:
             logger.error(f"Caught {e.__class__.__name__}, terminating workers")

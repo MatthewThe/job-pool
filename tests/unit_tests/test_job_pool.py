@@ -107,7 +107,10 @@ def test_write_progress_to_logger(mocker):
 
     results = pool.checkPool()
 
-    assert mock_logger.log.call_args_list[-2][0][1].startswith("100%")
+    # 1. [-1]: final call
+    # 2. [0]: first of (args, kwargs) tuple
+    # 3. [1]: second argument (first argument is the log level)
+    assert mock_logger.log.call_args_list[-1][0][1].startswith("100%")
 
     assert results == [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 
