@@ -1,3 +1,8 @@
+v0.3.0
+- Added bounded queue functionality
+- Move print_progress_every from checkPool to object initialization
+- No more automatic detection of maximum number of jobs for progress bar
+
 v0.2.6
 - Use pool.terminate() instead of pool.close() to prevent hanging pool.join() (#1)
 
