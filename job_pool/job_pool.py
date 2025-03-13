@@ -50,11 +50,13 @@ class NestablePool(multiprocessing.pool.Pool):
 
 class AbnormalPoolTerminationError(Exception):
     "Raised when the pool has a non-zero exitcode"
+
     pass
 
 
 class AbnormalWorkerTerminationError(Exception):
     "Raised when the worker has a non-zero exitcode"
+
     pass
 
 
@@ -66,27 +68,50 @@ class JobPool:
         queue: Optional[multiprocessing.Queue] = None,
         timeout: int = 10000,
         maxtasksperchild: Optional[int] = None,
+        max_tasks_queued: int = 0,
         write_progress_to_logger: bool = False,
+        print_progress_every: int = -1,
+        total_tasks: Optional[int] = None,
     ):
-        """Creates a JobPool object
+        """Creates a JobPool object.
 
-        In the GUIs, the actual processing runs in a child process to allow user
-        interaction with the GUI itself. In this case, we need a
-        NoDaemonProcess to allow this child process to spawn children,
-        which is implemented in the NestablePool class.
-        We also need to pass the logger to these grandchildren processes
-        using the multiprocessing.Queue and QueueListener classes.
+        This class addresses several shortcomings of multiprocessing.Pool:
+        - Child processes are killed on Exception, including KeyboardInterrupt.
+        - Allow nested pools.
+        - Allow logging from the child processes.
+        - Add progress bar.
+
+        When used in a GUI, the actual processing runs in a child process to allow 
+        user interaction with the GUI itself. In this case, we need a NoDaemonProcess
+        to allow this child process to spawn children, which is implemented in the 
+        NestablePool class. We also need to pass the logger to these grandchildren 
+        processes using the multiprocessing.Queue and QueueListener classes.
 
         Args:
-            processes: number of processes. Defaults to 1.
-            warningFilter: level of warnings (https://docs.python.org/3/library/warnings.html#warning-filter). Defaults to "default".
-            queue: a multiprocessing.Queue object. If None, a new queue is automatically created. Defaults to None.
-            timeout: maximum time out for each job in seconds. Defaults to 10000 (~3 hours).
-            maxtasksperchild: number of jobs a process can execute before respawning a new process. If None, the number of jobs is unlimited. Default to None.
-        """
+            processes (int, optional): number of processes. Defaults to 1.
+            warningFilter (str, optional): level of warnings (https://docs.python.org/3/library/warnings.html#warning-filter). Defaults to "default".
+            queue (Optional[multiprocessing.Queue], optional): a multiprocessing.Queue object for log messages from worker threads. If None, a new queue is automatically created. Defaults to None.
+            timeout (int, optional): maximum time out for each job in seconds. Defaults to 10000 (~3 hours).
+            maxtasksperchild (Optional[int], optional): number of jobs a process can execute before respawning a new process. If None, the number of jobs is unlimited. Default to None.
+            max_tasks_queued (int, optional): use a bounded queue, i.e. applyAsync calls are blocking if there are more than max_tasks_queued jobs in the queue. Default to 0 (=unbounded queue).
+            write_progress_to_logger (bool, optional): by default the tqdm progress is only visible on stdout, enabling this flag also writes tqdm progress to logger. Defaults to False.
+            print_progress_every (int, optional): print progress every n iterations, only used for progress bar. Defaults to -1 (let tqdm decide itself when to print progress).
+            total_tasks (Optional[int], optional): total number of tasks, only used for progress bar. Defaults to None (undetermined length).
+        """ 
         self.timeout = timeout
         self.maxtasksperchild = maxtasksperchild
         self.write_progress_to_logger = write_progress_to_logger
+
+        self.task_queue = multiprocessing.Queue(maxsize=max_tasks_queued)
+        tqdm_out = None
+        if self.write_progress_to_logger:
+            tqdm_out = TqdmToLogger(logger, level=logging.INFO)
+        self.progress_bar = tqdm(
+            total=total_tasks,
+            file=tqdm_out,
+            miniters=print_progress_every,
+            maxinterval=float("inf"),
+        )
 
         if not queue and multiprocessing.current_process().name != "MainProcess":
             queue = multiprocessing.Queue()
@@ -103,21 +128,23 @@ class JobPool:
         self.results = []
 
     def applyAsync(self, f, fargs, *args, **kwargs):
-        r = self.pool.apply_async(f, fargs, *args, **kwargs)
+        self.task_queue.put("dummy")
+        r = self.pool.apply_async(f, fargs, *args, **kwargs, callback=self.markTaskDone)
         self.results.append(r)
 
+    def markTaskDone(self, _):
+        self.task_queue.get()
+        self.progress_bar.update(1)
+
     def checkPool(self, printProgressEvery: int = -1):
+        """Waits for all jobs to complete.
+
+        Args:
+            printProgressEvery (int, deprecated): Update the progress every n iterations. Deprecated, moved to JobPool initialization. Defaults to -1 (let tqdm decide itself).
+        """        
         try:
             outputs = list()
-            tqdm_out = None
-            if self.write_progress_to_logger:
-                tqdm_out = TqdmToLogger(logger, level=logging.INFO)
-            for res in tqdm(
-                self.results,
-                file=tqdm_out,
-                miniters=printProgressEvery,
-                maxinterval=float("inf"),
-            ):
+            for res in self.results:
                 self.checkForTerminatedProcess(res)
                 outputs.append(res.get())
             self.stopPool()
