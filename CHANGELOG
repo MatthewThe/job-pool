@@ -1,3 +1,6 @@
+v0.3.1
+- Added proper error handling for apply_async
+
 v0.3.0
 - Added bounded queue functionality
 - Move print_progress_every from checkPool to object initialization
