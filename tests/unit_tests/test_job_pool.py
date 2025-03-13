@@ -90,15 +90,24 @@ def test_maxtasksperchild_with_exited_process():
         _ = pool.checkPool()
 
 
-def test_write_progress_to_logger(caplog):
+def test_write_progress_to_logger(mocker):
     """Tests that each job finishes within timeout, but total time is allowed to exceed timeout"""
-    pool = JobPool(4, maxtasksperchild=2, write_progress_to_logger=True)
-    for value in [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]:
+    mock_logger = mocker.patch("job_pool.job_pool.logger")
+    input_list = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    pool = JobPool(
+        4,
+        maxtasksperchild=2,
+        write_progress_to_logger=True,
+        print_progress_every=1,
+        total_jobs=len(input_list),
+    )
+    for value in input_list:
+        time.sleep(0.1)
         pool.applyAsync(add_one, [value])
 
     results = pool.checkPool()
 
-    assert "100%" in caplog.text
+    assert mock_logger.log.call_args_list[-2][0][1].startswith("100%")
 
     assert results == [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 
