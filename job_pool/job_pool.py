@@ -6,6 +6,7 @@ import warnings
 import logging
 from logging.handlers import QueueHandler, QueueListener
 import multiprocessing.pool
+import traceback
 
 from tqdm import tqdm
 
@@ -129,12 +130,28 @@ class JobPool:
 
     def applyAsync(self, f, fargs, *args, **kwargs):
         self.job_queue.put("dummy")
-        r = self.pool.apply_async(f, fargs, *args, **kwargs, callback=self.markJobDone)
+        r = self.pool.apply_async(f, fargs, *args, **kwargs, callback=self.markJobDone, error_callback=self.handleJobError)
         self.results.append(r)
 
     def markJobDone(self, _):
         self.job_queue.get()
         self.progress_bar.update(1)
+    
+    def handleJobError(self, e: Exception):
+        """Pass the exception to the logger and terminate workers.
+
+        By terminating the pool and freeing up a space in the job_queue,
+        the pool is killed (in a roundabout way) the first time a new item
+        is added to the pool. This was necessary since exceptions thrown in
+        the error_callback did not kill the main thread.
+
+        Args:
+            e (Exception): exception thrown by the worker thread from the error_callback
+        """
+        logger.error("\n".join(traceback.format_exception(type(e), e, e.__traceback__)))
+        self.pool.terminate()
+        self.job_queue.get()
+        self.job_queue.close()
 
     def checkPool(self, printProgressEvery: int = -1):
         """Waits for all jobs to complete.
