@@ -1,3 +1,6 @@
+v0.3.2
+- Allow callbacks in applyAsync
+
 v0.3.1
 - Added proper error handling for apply_async
 
