@@ -60,7 +60,6 @@ def test_custom_error_callback():
 
     with pytest.raises(AbnormalPoolTerminationError):
         _ = pool.checkPool()
-    assert False
 
 
 def test_no_exited_process():
