@@ -24,6 +24,22 @@ def test_add_one():
     assert results == list(range(1, 21))
 
 
+def test_add_one_with_callback():
+    """Tests that a callback can be passed to applyAsync"""
+    a = 0
+
+    def my_callback(x):
+        nonlocal a
+        a += x
+
+    pool = JobPool(4)
+    for i in range(20):
+        pool.applyAsync(add_one, [i], callback=my_callback)
+    results = pool.checkPool()
+    assert results == list(range(1, 21))
+    assert a == 210
+
+
 def test_exited_process():
     pool = JobPool(4, timeout=10)
     for value in [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]:
@@ -31,6 +47,20 @@ def test_exited_process():
 
     with pytest.raises(AbnormalPoolTerminationError):
         _ = pool.checkPool()
+
+
+def test_custom_error_callback():
+    def my_error_callback(x):
+        print(x)  # doesn't seem to do anything but at least it runs through...
+        return x
+
+    pool = JobPool(4, timeout=10)
+    for value in [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]:
+        pool.applyAsync(exit_if_one, [value], error_callback=my_error_callback)
+
+    with pytest.raises(AbnormalPoolTerminationError):
+        _ = pool.checkPool()
+    assert False
 
 
 def test_no_exited_process():
@@ -113,6 +143,27 @@ def test_write_progress_to_logger(mocker):
     assert mock_logger.log.call_args_list[-1][0][1].startswith("100%")
 
     assert results == [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+
+
+def add_one_with_pool(x):
+    pool = JobPool(4, maxtasksperchild=2)
+    for value in [1, 1, 1, 1, 1, 1, 1, 1]:
+        pool.applyAsync(add_one, [x + value])
+
+    results = pool.checkPool()
+
+    return sum(results)
+
+
+def test_pool_is_nestable():
+    """Tests that each job finishes within timeout, but total time is allowed to exceed timeout"""
+    pool = JobPool(4, maxtasksperchild=2)
+    for value in [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]:
+        pool.applyAsync(add_one_with_pool, [value])
+
+    results = pool.checkPool()
+
+    assert results == [16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16]
 
 
 if __name__ == "__main__":

@@ -82,10 +82,10 @@ class JobPool:
         - Allow logging from the child processes.
         - Add progress bar.
 
-        When used in a GUI, the actual processing runs in a child process to allow 
+        When used in a GUI, the actual processing runs in a child process to allow
         user interaction with the GUI itself. In this case, we need a NoDaemonProcess
-        to allow this child process to spawn children, which is implemented in the 
-        NestablePool class. We also need to pass the logger to these grandchildren 
+        to allow this child process to spawn children, which is implemented in the
+        NestablePool class. We also need to pass the logger to these grandchildren
         processes using the multiprocessing.Queue and QueueListener classes.
 
         Args:
@@ -130,13 +130,28 @@ class JobPool:
 
     def applyAsync(self, f, fargs, *args, **kwargs):
         self.job_queue.put("dummy")
-        r = self.pool.apply_async(f, fargs, *args, **kwargs, callback=self.markJobDone, error_callback=self.handleJobError)
+
+        callback = self.markJobDone
+        if "callback" in kwargs:
+            parent_callback = kwargs.pop("callback")
+            callback = lambda x: parent_callback(self.markJobDone(x))
+
+        error_callback = self.handleJobError
+        if "error_callback" in kwargs:
+            parent_error_callback = kwargs.pop("error_callback")
+            # doesn't seem to call parent_error_callback but at least it runs through...
+            error_callback = lambda x: self.handleJobError(parent_error_callback(x))
+
+        r = self.pool.apply_async(
+            f, fargs, *args, **kwargs, callback=callback, error_callback=error_callback
+        )
         self.results.append(r)
 
-    def markJobDone(self, _):
+    def markJobDone(self, x):
         self.job_queue.get()
         self.progress_bar.update(1)
-    
+        return x
+
     def handleJobError(self, e: Exception):
         """Pass the exception to the logger and terminate workers.
 
@@ -158,7 +173,7 @@ class JobPool:
 
         Args:
             printProgressEvery (int, deprecated): Update the progress every n iterations. Deprecated, moved to JobPool initialization. Defaults to -1 (let tqdm decide itself).
-        """        
+        """
         try:
             outputs = list()
             for res in self.results:
