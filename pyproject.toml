@@ -5,7 +5,10 @@ description = "Enhanced Job Pool for Python Multiprocessing"
 authors = ["Matthew The <matthew.the@tum.de>"]
 license = "Apache-2.0"
 readme = "README.md"
-packages = [{include = "job_pool"}]
+packages = [
+    {include = "job_pool"},
+    {include = "tests", format = "sdist"},
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
