@@ -1,3 +1,6 @@
+v0.3.4
+- Include tests directory in source tarball for conda-forge
+
 v0.3.3
 - Add sdist to pypi release workflow
 
