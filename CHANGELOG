@@ -1,3 +1,6 @@
+v0.3.3
+- Add sdist to pypi release workflow
+
 v0.3.2
 - Allow callbacks in applyAsync
 
